@@ -3,7 +3,7 @@ import path from 'path';
 import { NextResponse } from 'next/server';
 import { generateContract } from '../../../lib/generateContract';
 import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
-import { sendClientEmail } from '../../../lib/sendClientEmail';
+import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 function toADF(text) {
   return {
@@ -175,12 +175,28 @@ export async function POST(request) {
     }
 
     try {
-      await sendClientEmail({
+      if (pdfPath && fs.existsSync(pdfPath)) {
+        try {
+          const autoPrintDir = 'C:\\AutoPrint\\Inbox';
+          const targetPdfPath = path.join(autoPrintDir, 'test.pdf');
+
+          if (!fs.existsSync(autoPrintDir)) {
+            fs.mkdirSync(autoPrintDir, { recursive: true });
+          }
+
+          fs.copyFileSync(pdfPath, targetPdfPath);
+          console.log('Kopija įrašyta:', targetPdfPath);
+        } catch (copyError) {
+          console.error('PDF kopijavimo klaida į AutoPrint Inbox:', copyError);
+        }
+      }
+
+      await sendRepairCreatedEmail({
         to: email,
         issueKey: jiraIssue.key,
         companyName,
         deviceModel,
-        pdfPath,
+        pdfBuffer: fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath) : null,
       });
     } catch (mailError) {
       console.error('El. laiško siuntimo klaida:', mailError);
