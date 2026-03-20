@@ -155,24 +155,29 @@ export async function POST(request) {
     let pdfPath = null;
 
     try {
-      const contractBuffer = generateContract({
-        metai,
-        data,
-        pilna_data,
-        gamintojas: manufacturer || '',
-        modelis: deviceModel || '',
-        serijinis: serialNumber || '',
-        vardas: firstName || '',
-        pavarde: lastName || '',
-        imone: resolvedCompanyName || '',
-        telefonas: phone || '',
-        email: email || '',
-        gedimas: issueDescription || '',
-        issueKey: jiraIssue.key || '',
-        kontaktinis_asmuo: contactPerson || '',
-        maitinimo_laidas: !!powerCable,
-        usb_laidas: !!usbCable,
-      });
+        const contractBuffer = generateContract({
+          metai,
+          data,
+          pilna_data,
+          gamintojas: manufacturer || '',
+          modelis: deviceModel || '',
+          serijinis: serialNumber || '',
+          vardas: firstName || '',
+          pavarde: lastName || '',
+          imone: resolvedCompanyName || '',
+          telefonas: phone || '',
+          email: email || '',
+          gedimas: issueDescription || '',
+          issueKey: jiraIssue.key || '',
+          kontaktinis_asmuo: contactPerson || '',
+          maitinimo_laidas: !!powerCable,
+          usb_laidas: !!usbCable,
+          invoiceNeeded: !!invoiceNeeded,
+          invoiceCompanyName: invoiceCompanyName || '',
+          invoiceCode: invoiceCode || '',
+          invoiceVatCode: invoiceVatCode || '',
+        });
+
 
       const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
       const filePath = path.join(generatedDir, fileName);
@@ -210,13 +215,13 @@ export async function POST(request) {
         }
       }
 
-      await sendRepairCreatedEmail({
-        to: email,
-        issueKey: jiraIssue.key,
-        companyName,
-        deviceModel,
-        pdfBuffer: fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath) : null,
-      });
+    await sendRepairCreatedEmail({
+      to: email,
+      issueKey: jiraIssue.key,
+      companyName: resolvedCompanyName,
+      deviceModel,
+      pdfBuffer: pdfPath && fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath) : null,
+    });
     } catch (mailError) {
       console.error('El. laiško siuntimo klaida:', mailError);
     }
