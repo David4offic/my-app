@@ -5,6 +5,8 @@ import { generateContract } from '../../../lib/generateContract';
 import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
+const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
+
 function toADF(text) {
   return {
     type: 'doc',
@@ -195,11 +197,10 @@ export async function POST(request) {
     try {
       if (pdfPath && fs.existsSync(pdfPath)) {
         try {
-          const autoPrintDir = 'C:\\AutoPrint\\Inbox';
-          const targetPdfPath = path.join(autoPrintDir, 'test.pdf');
+          const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssue.key}.pdf`);
 
-          if (!fs.existsSync(autoPrintDir)) {
-            fs.mkdirSync(autoPrintDir, { recursive: true });
+          if (!fs.existsSync(AUTO_PRINT_DIR)) {
+            fs.mkdirSync(AUTO_PRINT_DIR, { recursive: true });
           }
 
           fs.copyFileSync(pdfPath, targetPdfPath);
