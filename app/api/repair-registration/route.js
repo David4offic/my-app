@@ -85,6 +85,10 @@ export async function POST(request) {
 
     const {
       companyName,
+      invoiceNeeded,
+      invoiceCompanyName,
+      invoiceCode,
+      invoiceVatCode,
       phone,
       email,
       deviceModel,
@@ -98,7 +102,7 @@ export async function POST(request) {
       usbCable,
     } = body;
 
-    if (!companyName || !phone || !email || !deviceModel || !issueDescription) {
+    if (!phone || !email || !deviceModel || !issueDescription) {
       return NextResponse.json(
         {
           success: false,
@@ -108,8 +112,22 @@ export async function POST(request) {
       );
     }
 
+    if (invoiceNeeded) {
+      if (!invoiceCompanyName || !invoiceCode || !invoiceVatCode) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Užpildykite sąskaitos faktūros laukus.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
+
     const jiraIssue = await createJiraIssue({
-      companyName,
+      companyName: resolvedCompanyName,
       phone,
       email,
       deviceModel,
@@ -144,7 +162,7 @@ export async function POST(request) {
         serijinis: serialNumber || '',
         vardas: firstName || '',
         pavarde: lastName || '',
-        imone: companyName || '',
+        imone: resolvedCompanyName || '',
         telefonas: phone || '',
         email: email || '',
         gedimas: issueDescription || '',

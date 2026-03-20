@@ -16,7 +16,12 @@ import {
 
 export default function Page() {
   const [form, setForm] = useState({
+    invoiceNeeded: false,
+    invoiceCompanyName: '',
+    invoiceCode: '',
+    invoiceVatCode: '',
     companyName: '',
+    contactPerson: '',
     phone: '',
     email: '',
     deviceModel: '',
@@ -25,7 +30,6 @@ export default function Page() {
     manufacturer: '',
     firstName: '',
     lastName: '',
-    contactPerson: '',
     powerCable: false,
     usbCable: false,
   });
@@ -48,12 +52,17 @@ export default function Page() {
     setResult(null);
 
     try {
+      const payload = {
+        ...form,
+        companyName: form.invoiceNeeded ? form.invoiceCompanyName : form.companyName,
+      };
+
       const response = await fetch('/api/repair-registration', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -77,7 +86,12 @@ export default function Page() {
       setShowSuccessModal(true);
 
       setForm({
+        invoiceNeeded: false,
+        invoiceCompanyName: '',
+        invoiceCode: '',
+        invoiceVatCode: '',
         companyName: '',
+        contactPerson: '',
         phone: '',
         email: '',
         deviceModel: '',
@@ -86,7 +100,6 @@ export default function Page() {
         manufacturer: '',
         firstName: '',
         lastName: '',
-        contactPerson: '',
         powerCable: false,
         usbCable: false,
       });
@@ -137,42 +150,68 @@ export default function Page() {
               <div className="border-b border-slate-100" />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="companyName"
-                className="text-sm font-semibold text-slate-700"
-              >
-                Įmonės pavadinimas <span className="text-red-500">*</span>
-              </label>
+            <div className="col-span-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <input
-                id="companyName"
-                name="companyName"
-                type="text"
-                required
-                value={form.companyName}
+                id="invoiceNeeded"
+                name="invoiceNeeded"
+                type="checkbox"
+                checked={form.invoiceNeeded}
                 onChange={handleChange}
-                placeholder="UAB Testas"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                className="h-4 w-4"
               />
+              <label htmlFor="invoiceNeeded" className="text-sm font-medium text-slate-700">
+                Ar reikia sąskaitos faktūros?
+              </label>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="contactPerson"
-                className="text-sm font-semibold text-slate-700"
-              >
-                Kontaktinis asmuo
-              </label>
-              <input
-                id="contactPerson"
-                name="contactPerson"
-                type="text"
-                value={form.contactPerson}
-                onChange={handleChange}
-                placeholder="Jonas Jonaitis"
-                className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-              />
-            </div>
+            {form.invoiceNeeded && (
+              <>
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label htmlFor="invoiceCompanyName" className="text-sm font-semibold text-slate-700">
+                    Įmonės pavadinimas
+                  </label>
+                  <input
+                    id="invoiceCompanyName"
+                    name="invoiceCompanyName"
+                    type="text"
+                    value={form.invoiceCompanyName}
+                    onChange={handleChange}
+                    placeholder="UAB Testas"
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="invoiceCode" className="text-sm font-semibold text-slate-700">
+                    Įmonės kodas
+                  </label>
+                  <input
+                    id="invoiceCode"
+                    name="invoiceCode"
+                    type="text"
+                    value={form.invoiceCode}
+                    onChange={handleChange}
+                    placeholder="123456789"
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="invoiceVatCode" className="text-sm font-semibold text-slate-700">
+                    PVM mokėtojo kodas
+                  </label>
+                  <input
+                    id="invoiceVatCode"
+                    name="invoiceVatCode"
+                    type="text"
+                    value={form.invoiceVatCode}
+                    onChange={handleChange}
+                    placeholder="LT123456789"
+                    className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="flex flex-col gap-2">
               <label
@@ -187,7 +226,7 @@ export default function Page() {
                 type="text"
                 value={form.firstName}
                 onChange={handleChange}
-                placeholder="Jonas"
+                placeholder="Vardas"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
               />
             </div>
@@ -205,7 +244,7 @@ export default function Page() {
                 type="text"
                 value={form.lastName}
                 onChange={handleChange}
-                placeholder="Jonaitis"
+                placeholder="Pavardė"
                 className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
               />
             </div>
@@ -243,7 +282,7 @@ export default function Page() {
                 required
                 value={form.email}
                 onChange={handleChange}
-                placeholder="test@test.lt"
+                placeholder="pvz@gmail.com  "
                 className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
               />
             </div>
