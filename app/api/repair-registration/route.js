@@ -153,6 +153,13 @@ export async function POST(request) {
 
     let contract = null;
     let pdfPath = null;
+    console.log('REPAIR BODY:', body);
+    console.log('INVOICE VALUES:', {
+      invoiceNeeded,
+      invoiceCompanyName,
+      invoiceCode,
+      invoiceVatCode,
+    });
 
     try {
         const contractBuffer = generateContract({
