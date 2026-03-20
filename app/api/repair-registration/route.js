@@ -5,6 +5,8 @@ import { generateContract } from '../../../lib/generateContract';
 import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
+const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
+
 function toADF(text) {
   return {
     type: 'doc',
@@ -85,6 +87,10 @@ export async function POST(request) {
 
     const {
       companyName,
+      invoiceNeeded,
+      invoiceCompanyName,
+      invoiceCode,
+      invoiceVatCode,
       phone,
       email,
       deviceModel,
@@ -98,7 +104,7 @@ export async function POST(request) {
       usbCable,
     } = body;
 
-    if (!companyName || !phone || !email || !deviceModel || !issueDescription) {
+    if (!phone || !email || !deviceModel || !issueDescription) {
       return NextResponse.json(
         {
           success: false,
@@ -108,8 +114,22 @@ export async function POST(request) {
       );
     }
 
+    if (invoiceNeeded) {
+      if (!invoiceCompanyName || !invoiceCode || !invoiceVatCode) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Užpildykite sąskaitos faktūros laukus.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
+
     const jiraIssue = await createJiraIssue({
-      companyName,
+      companyName: resolvedCompanyName,
       phone,
       email,
       deviceModel,
@@ -144,7 +164,7 @@ export async function POST(request) {
         serijinis: serialNumber || '',
         vardas: firstName || '',
         pavarde: lastName || '',
-        imone: companyName || '',
+        imone: resolvedCompanyName || '',
         telefonas: phone || '',
         email: email || '',
         gedimas: issueDescription || '',
@@ -177,11 +197,10 @@ export async function POST(request) {
     try {
       if (pdfPath && fs.existsSync(pdfPath)) {
         try {
-          const autoPrintDir = 'C:\\AutoPrint\\Inbox';
-          const targetPdfPath = path.join(autoPrintDir, 'test.pdf');
+          const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssue.key}.pdf`);
 
-          if (!fs.existsSync(autoPrintDir)) {
-            fs.mkdirSync(autoPrintDir, { recursive: true });
+          if (!fs.existsSync(AUTO_PRINT_DIR)) {
+            fs.mkdirSync(AUTO_PRINT_DIR, { recursive: true });
           }
 
           fs.copyFileSync(pdfPath, targetPdfPath);
