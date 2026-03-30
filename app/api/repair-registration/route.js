@@ -149,6 +149,7 @@ export async function POST(request) {
       contactPerson,
       powerCable,
       usbCable,
+      skipJira: skipJiraBody,
     } = body;
 
     if (!phone || !email || !deviceModel || !issueDescription) {
@@ -174,15 +175,18 @@ export async function POST(request) {
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
+    const skipJira = process.env.SKIP_JIRA === 'true' || skipJiraBody;
 
-    const jiraIssue = await createJiraIssue({
-      companyName: resolvedCompanyName,
-      phone,
-      email,
-      deviceModel,
-      serialNumber,
-      issueDescription,
-    });
+    const jiraIssue = skipJira
+      ? { key: `SKIP-${Date.now()}`, id: null }
+      : await createJiraIssue({
+          companyName: resolvedCompanyName,
+          phone,
+          email,
+          deviceModel,
+          serialNumber,
+          issueDescription,
+        });
 
     const now = new Date();
     const metai = String(now.getFullYear());
