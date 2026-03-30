@@ -7,6 +7,10 @@ import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
 const fsPromises = fs.promises;
+const REPORT_PATH = path.join(process.cwd(), 'generated', 'ataskaita.txt');
+
+const getDurationMs = (start) => Number(process.hrtime.bigint() - start) / 1_000_000;
+const formatMs = (value) => `${value.toFixed(1)} ms`;
 
 function toADF(text) {
   return {
@@ -86,6 +90,11 @@ async function ensureDirectory(directory) {
   await fsPromises.mkdir(directory, { recursive: true });
 }
 
+async function appendReport(lines) {
+  await ensureDirectory(path.dirname(REPORT_PATH));
+  await fsPromises.appendFile(REPORT_PATH, lines.join('\n') + '\n');
+}
+
 async function tryReadFile(filePath) {
   try {
     return await fsPromises.readFile(filePath);
@@ -101,17 +110,30 @@ async function finalizeContractProcessing({
   email,
   resolvedCompanyName,
   deviceModel,
+  timings,
 }) {
+  const reportLines = [];
+  const reportTimestamp = new Date().toISOString();
+  let stepStart;
+
   try {
+    stepStart = process.hrtime.bigint();
     await ensureDirectory(path.dirname(filePath));
     await fsPromises.writeFile(filePath, contractBuffer);
+    timings.push({ step: 'writeDocx', duration: getDurationMs(stepStart) });
 
+    stepStart = process.hrtime.bigint();
     const convertedPdfPath = await convertDocxToPdf(filePath);
+    timings.push({ step: 'convertDocxToPdf', duration: getDurationMs(stepStart) });
+
+    stepStart = process.hrtime.bigint();
     const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssueKey}.pdf`);
     await ensureDirectory(AUTO_PRINT_DIR);
     await fsPromises.copyFile(convertedPdfPath, targetPdfPath);
+    timings.push({ step: 'copyPdf', duration: getDurationMs(stepStart) });
     console.log('Kopija įrašyta:', targetPdfPath);
 
+    stepStart = process.hrtime.bigint();
     const pdfBuffer = await tryReadFile(convertedPdfPath);
     await sendRepairCreatedEmail({
       to: email,
@@ -120,8 +142,23 @@ async function finalizeContractProcessing({
       deviceModel,
       pdfBuffer,
     });
+    timings.push({ step: 'sendRepairCreatedEmail', duration: getDurationMs(stepStart) });
   } catch (error) {
     console.error('Foninis apdorojimas nepavyko:', error);
+    timings.push({ step: 'finalizeError', duration: 0, error: String(error) });
+  } finally {
+    reportLines.push(`=== ${reportTimestamp} issue=${jiraIssueKey}`);
+    for (const entry of timings) {
+      reportLines.push(
+        `${entry.step}: ${formatMs(entry.duration)}${entry.error ? ' ERROR: ' + entry.error : ''}`
+      );
+    }
+    reportLines.push('---');
+    try {
+      await appendReport(reportLines);
+    } catch (reportError) {
+      console.error('Ataskaitos rašymo klaida:', reportError);
+    }
   }
 }
 
@@ -171,7 +208,9 @@ export async function POST(request) {
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
+    const timings = [];
 
+    let stepStart = process.hrtime.bigint();
     const jiraIssue = await createJiraIssue({
       companyName: resolvedCompanyName,
       phone,
@@ -180,6 +219,9 @@ export async function POST(request) {
       serialNumber,
       issueDescription,
     });
+    timings.push({ step: 'createJiraIssue', duration: getDurationMs(stepStart) });
+
+    stepStart = process.hrtime.bigint();
 
     const now = new Date();
     const metai = String(now.getFullYear());
@@ -217,6 +259,7 @@ export async function POST(request) {
         invoiceCode: invoiceCode || '',
         invoiceVatCode: invoiceVatCode || '',
       });
+      timings.push({ step: 'generateContract', duration: getDurationMs(stepStart) });
 
       const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
       const filePath = path.join(generatedDir, fileName);
