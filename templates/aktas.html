@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="lt">
+  <head>
+    <meta charset="utf-8" />
+    <title>4office remonto aktas</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 14mm 12mm 16mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #111827;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .page {
+        width: 100%;
+      }
+
+      .header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #111827;
+      }
+
+      .header img {
+        width: 180px;
+        height: auto;
+      }
+
+      .company {
+        text-align: right;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .company strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .title {
+        margin: 18px 0 10px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .section-title {
+        margin: 16px 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .info-table td,
+      .info-table th,
+      .attachments-table td,
+      .attachments-table th {
+        border: 1px solid #111827;
+        padding: 6px 8px;
+        vertical-align: top;
+      }
+
+      .label-cell {
+        width: 38%;
+        font-weight: 700;
+      }
+
+      .value-cell {
+        white-space: pre-wrap;
+      }
+
+      .rules {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      .rules li {
+        margin: 0 0 6px;
+      }
+
+      .consent {
+        margin-top: 16px;
+      }
+
+      .signature {
+        margin-top: 28px;
+      }
+
+      .signature-line {
+        margin-top: 18px;
+        padding-top: 4px;
+      }
+
+      .muted {
+        color: #4b5563;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <img src="1774872171_4office-remonto-aktas/1774872171_4office-remonto-aktas-1.png" alt="4office" />
+
+        <div class="company">
+          <strong>UAB 4office</strong>
+          <div>Canon Partner in Lithuania</div>
+          <div>Gariunų g. 57A-5, Vilnius</div>
+          <div>Tel. +370 5 230 5365</div>
+          <div>www.4office.lt</div>
+          <div>help@4office.lt</div>
+          <div>Darbo laikas: I-V 8:00-17:00</div>
+        </div>
+      </div>
+
+      <div class="title">Irangos remonto priemimo-perdavimo aktas</div>
+
+      <table class="info-table">
+        <tr>
+          <td class="label-cell">Irangos remonto priemimo-perdavimo aktas nr.</td>
+          <td class="value-cell">{issueKey}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Registravimo data</td>
+          <td class="value-cell">{data}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Vieta</td>
+          <td class="value-cell">Gariunu g. 57A-5, Vilnius</td>
+        </tr>
+      </table>
+
+      <div class="section-title">Kliento informacija</div>
+      <table class="info-table">
+        <tr>
+          <td class="label-cell">Vardas</td>
+          <td class="value-cell">{vardas}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Pavarde</td>
+          <td class="value-cell">{pavarde}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">El. pastas</td>
+          <td class="value-cell">{email}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Telefono numeris</td>
+          <td class="value-cell">{telefonas}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Imones kodas / Pavadinimas</td>
+          <td class="value-cell">{invoiceCode}</td>
+        </tr>
+      </table>
+
+      <div class="section-title">Irangos informacija</div>
+      <table class="info-table">
+        <tr>
+          <td class="label-cell">Gamintojas</td>
+          <td class="value-cell">{gamintojas}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Modelis, pavadinimas</td>
+          <td class="value-cell">{modelis}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Serijinis numeris</td>
+          <td class="value-cell">{serijinis}</td>
+        </tr>
+        <tr>
+          <td class="label-cell">Priedai</td>
+          <td class="value-cell">
+            <table class="attachments-table">
+              <tr>
+                <td class="label-cell">Maitinimo laidas</td>
+                <td class="value-cell">{maitinimo_laidas}</td>
+                <td class="label-cell">USB laidas</td>
+                <td class="value-cell">{usb_laidas}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Gedimo aprasymas</td>
+          <td class="value-cell">{gedimas}</td>
+        </tr>
+      </table>
+
+      <div class="section-title">Remonto salygos</div>
+      <ul class="rules">
+        <li>Diagnostika atliekama per 2 darbo dienas ir iprastai yra nemokama.</li>
+        <li>Jei remonto kaina nevirsija 40 Eur su PVM, darbai bus atliekami be isankstinio kliento informavimo ir sutikimo. Virsijus sia suma, klientas turi buti informuotas is anksto ir turi duoti sutikima.</li>
+        <li>Apie gedima ir remonto kaina informuojame telefonu ir/arba el. pastu.</li>
+        <li>Atsisakius remonto gali buti taikomas diagnostikos ir transportavimo mokestis.</li>
+        <li>Atsiskaityti galima bankiniu pavedimu arba banko kortele 4office centre.</li>
+        <li>Irenginys grazinamas tik pilnai atsiskaicius.</li>
+        <li>Prasome ji atsiimti per 2 savaites nuo informavimo. Veliau gali buti taikomas saugojimo mokestis - 1 Eur uz kiekviena paveluota diena.</li>
+        <li>Jei irenginys neatsiimamas per 2 menesius, UAB 4office turi teise ji utilizuoti arba kitaip juo disponuoti, siekiant padengti patirtas islaidas.</li>
+      </ul>
+
+      <div class="consent">
+        <div class="section-title">Sutikimas</div>
+        <div>Palikdamas irengini, klientas patvirtina, kad sutinka su siomis salygomis.</div>
+      </div>
+
+      <div class="signature">
+        <div class="signature-line">{data} ___________________________________________________________</div>
+        <div class="muted">(Vardas, Pavarde, parasas)</div>
+      </div>
+    </div>
+  </body>
+</html>

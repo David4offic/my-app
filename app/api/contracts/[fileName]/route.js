@@ -4,28 +4,24 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
   try {
-    const { fileName } = await params;
+    const { fileName } = params;
 
     const safeFileName = path.basename(fileName);
     const filePath = path.join(process.cwd(), 'generated', safeFileName);
 
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Failas nerastas.',
-        },
-        { status: 404 }
-      );
-    }
+    await fs.promises.access(filePath);
+    const fileBuffer = await fs.promises.readFile(filePath);
 
-    const fileBuffer = fs.readFileSync(filePath);
+    const extension = path.extname(safeFileName).toLowerCase();
+    const contentType =
+      extension === '.pdf'
+        ? 'application/pdf'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${safeFileName}"`,
       },
     });

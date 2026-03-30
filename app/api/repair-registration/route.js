@@ -1,11 +1,35 @@
 import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
-import { generateContract } from '../../../lib/generateContract';
-import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
+import { generatePdf } from '../../../lib/generatePdf';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
+const fsPromises = fs.promises;
+const GENERATED_DIR = path.join(process.cwd(), 'generated');
+const REPORT_PATH = path.join(GENERATED_DIR, 'ataskaita.txt');
+
+const getDurationMs = (start) => Number(process.hrtime.bigint() - start) / 1_000_000;
+const formatMs = (value) => `${value.toFixed(1)} ms`;
+
+function logTimingSummary(label, timings) {
+  const summary = timings
+    .map(
+      (entry) =>
+        `${entry.step}=${entry.duration.toFixed(1)}ms${entry.error ? ` ERROR:${entry.error}` : ''}`
+    )
+    .join(' | ');
+
+  console.log(`[repair-registration ${label}] ${summary}`);
+}
+
+function pushTiming(timings, step, startedAt, error) {
+  timings.push({
+    step,
+    duration: getDurationMs(startedAt),
+    ...(error ? { error: String(error) } : {}),
+  });
+}
 
 function toADF(text) {
   return {
@@ -32,7 +56,7 @@ function getBasicAuthHeader() {
   const token = process.env.JIRA_API_TOKEN;
 
   if (!email || !token) {
-    throw new Error('Trūksta JIRA_EMAIL arba JIRA_API_TOKEN .env faile');
+    throw new Error('Truksta JIRA_EMAIL arba JIRA_API_TOKEN .env faile');
   }
 
   return `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
@@ -42,7 +66,7 @@ async function createJiraIssue(formData) {
   const jiraBaseUrl = process.env.JIRA_BASE_URL;
 
   if (!jiraBaseUrl) {
-    throw new Error('Trūksta JIRA_BASE_URL .env faile');
+    throw new Error('Truksta JIRA_BASE_URL .env faile');
   }
 
   const summary = `${formData.deviceModel} - ${formData.companyName}`;
@@ -53,7 +77,6 @@ async function createJiraIssue(formData) {
       issuetype: { id: '10006' },
       summary,
       description: toADF(formData.issueDescription),
-
       customfield_10080: formData.companyName || '',
       customfield_10069: formData.phone || '',
       customfield_10068: formData.email || '',
@@ -81,9 +104,122 @@ async function createJiraIssue(formData) {
   return result;
 }
 
-export async function POST(request) {
+async function ensureDirectory(directory) {
+  await fsPromises.mkdir(directory, { recursive: true });
+}
+
+async function appendReport(lines) {
+  await ensureDirectory(path.dirname(REPORT_PATH));
+  await fsPromises.appendFile(REPORT_PATH, lines.join('\n') + '\n');
+}
+
+function createPdfData({
+  manufacturer,
+  deviceModel,
+  serialNumber,
+  firstName,
+  lastName,
+  resolvedCompanyName,
+  phone,
+  email,
+  issueDescription,
+  issueKey,
+  powerCable,
+  usbCable,
+  invoiceCode,
+}) {
+  const now = new Date();
+  const data = `${String(now.getDate()).padStart(2, '0')}.${String(
+    now.getMonth() + 1
+  ).padStart(2, '0')}.${now.getFullYear()}`;
+
+  return {
+    data,
+    gamintojas: manufacturer || '',
+    modelis: deviceModel || '',
+    serijinis: serialNumber || '',
+    vardas: firstName || '',
+    pavarde: lastName || '',
+    imone: resolvedCompanyName || '',
+    telefonas: phone || '',
+    email: email || '',
+    gedimas: issueDescription || '',
+    issueKey: issueKey || '',
+    maitinimo_laidas: !!powerCable,
+    usb_laidas: !!usbCable,
+    invoiceCode: invoiceCode || resolvedCompanyName || '',
+  };
+}
+
+async function runBackgroundRegistrationWork({
+  issueKey,
+  pdfPath,
+  email,
+  resolvedCompanyName,
+  deviceModel,
+  pdfData,
+  initialTimings,
+}) {
+  const startedAt = new Date().toISOString();
+  const timings = [...initialTimings];
+
   try {
+    let stepStart = process.hrtime.bigint();
+    const pdfBuffer = await generatePdf(pdfData);
+    pushTiming(timings, 'generatePdf', stepStart);
+
+    stepStart = process.hrtime.bigint();
+    await ensureDirectory(path.dirname(pdfPath));
+    await fsPromises.writeFile(pdfPath, pdfBuffer);
+    pushTiming(timings, 'writePdf', stepStart);
+
+    stepStart = process.hrtime.bigint();
+    const targetPdfPath = path.join(AUTO_PRINT_DIR, `${issueKey}.pdf`);
+    await ensureDirectory(AUTO_PRINT_DIR);
+    await fsPromises.copyFile(pdfPath, targetPdfPath);
+    pushTiming(timings, 'copyPdf', stepStart);
+
+    stepStart = process.hrtime.bigint();
+    await sendRepairCreatedEmail({
+      to: email,
+      issueKey,
+      companyName: resolvedCompanyName,
+      deviceModel,
+      pdfBuffer,
+    });
+    pushTiming(timings, 'sendRepairCreatedEmail', stepStart);
+  } catch (error) {
+    console.error('Foninis apdorojimas nepavyko:', error);
+    timings.push({ step: 'backgroundError', duration: 0, error: String(error) });
+  } finally {
+    const reportLines = [
+      `=== ${startedAt} issue=${issueKey}`,
+      ...timings.map(
+        (entry) =>
+          `${entry.step}: ${formatMs(entry.duration)}${entry.error ? ` ERROR: ${entry.error}` : ''}`
+      ),
+      '---',
+    ];
+
+    try {
+      await appendReport(reportLines);
+    } catch (reportError) {
+      console.error('Ataskaitos rasymo klaida:', reportError);
+    }
+
+    logTimingSummary(`background ${issueKey}`, timings);
+  }
+}
+
+export async function POST(request) {
+  const requestStart = process.hrtime.bigint();
+
+  try {
+    const timings = [];
+
+    let stepStart = process.hrtime.bigint();
     const body = await request.json();
+    pushTiming(timings, 'requestJson', stepStart);
 
     const {
       companyName,
@@ -99,7 +235,6 @@ export async function POST(request) {
       manufacturer,
       firstName,
       lastName,
-      contactPerson,
       powerCable,
       usbCable,
     } = body;
@@ -108,26 +243,25 @@ export async function POST(request) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Užpildykite visus privalomus laukus.',
+          message: 'Uzpildykite visus privalomus laukus.',
         },
         { status: 400 }
       );
     }
 
-    if (invoiceNeeded) {
-      if (!invoiceCompanyName || !invoiceCode || !invoiceVatCode) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Užpildykite sąskaitos faktūros laukus.',
-          },
-          { status: 400 }
-        );
-      }
+    if (invoiceNeeded && (!invoiceCompanyName || !invoiceCode || !invoiceVatCode)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Uzpildykite saskaitos fakturos laukus.',
+        },
+        { status: 400 }
+      );
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
 
+    stepStart = process.hrtime.bigint();
     const jiraIssue = await createJiraIssue({
       companyName: resolvedCompanyName,
       phone,
@@ -136,118 +270,87 @@ export async function POST(request) {
       serialNumber,
       issueDescription,
     });
+    pushTiming(timings, 'createJiraIssue', stepStart);
 
-    const now = new Date();
-    const metai = String(now.getFullYear());
-    const data = `${String(now.getDate()).padStart(2, '0')}.${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}`;
-    const pilna_data = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.pdf`;
+    const filePath = path.join(GENERATED_DIR, fileName);
 
-    const generatedDir = path.join(process.cwd(), 'generated');
-    if (!fs.existsSync(generatedDir)) {
-      fs.mkdirSync(generatedDir, { recursive: true });
-    }
+    const contract = {
+      fileName,
+      filePath,
+      pdfPath: filePath,
+      pdfPending: true,
+      downloadUrl: `/api/contracts/${encodeURIComponent(fileName)}`,
+    };
 
-    let contract = null;
-    let pdfPath = null;
-    console.log('REPAIR BODY:', body);
-    console.log('INVOICE VALUES:', {
-      invoiceNeeded,
-      invoiceCompanyName,
-      invoiceCode,
-      invoiceVatCode,
-    });
-
-    try {
-        const contractBuffer = generateContract({
-          metai,
-          data,
-          pilna_data,
-          gamintojas: manufacturer || '',
-          modelis: deviceModel || '',
-          serijinis: serialNumber || '',
-          vardas: firstName || '',
-          pavarde: lastName || '',
-          imone: resolvedCompanyName || '',
-          telefonas: phone || '',
-          email: email || '',
-          gedimas: issueDescription || '',
-          issueKey: jiraIssue.key || '',
-          kontaktinis_asmuo: contactPerson || '',
-          maitinimo_laidas: !!powerCable,
-          usb_laidas: !!usbCable,
-          invoiceNeeded: !!invoiceNeeded,
-          invoiceCompanyName: invoiceCompanyName || '',
-          invoiceCode: invoiceCode || '',
-          invoiceVatCode: invoiceVatCode || '',
-        });
-
-
-      const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
-      const filePath = path.join(generatedDir, fileName);
-
-      fs.writeFileSync(filePath, contractBuffer);
-
-      try {
-        pdfPath = await convertDocxToPdf(filePath);
-      } catch (pdfError) {
-        console.error('PDF generavimo klaida:', pdfError);
-      }
-
-      contract = {
-        fileName,
-        filePath,
-        pdfPath,
-      };
-    } catch (docError) {
-      console.error('DOCX generavimo klaida:', docError);
-    }
-
-    try {
-      if (pdfPath && fs.existsSync(pdfPath)) {
-        try {
-          const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssue.key}.pdf`);
-
-          if (!fs.existsSync(AUTO_PRINT_DIR)) {
-            fs.mkdirSync(AUTO_PRINT_DIR, { recursive: true });
-          }
-
-          fs.copyFileSync(pdfPath, targetPdfPath);
-          console.log('Kopija įrašyta:', targetPdfPath);
-        } catch (copyError) {
-          console.error('PDF kopijavimo klaida į AutoPrint Inbox:', copyError);
-        }
-      }
-
-    await sendRepairCreatedEmail({
-      to: email,
-      issueKey: jiraIssue.key,
-      companyName: resolvedCompanyName,
+    const pdfData = createPdfData({
+      manufacturer,
       deviceModel,
-      pdfBuffer: pdfPath && fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath) : null,
+      serialNumber,
+      firstName,
+      lastName,
+      resolvedCompanyName,
+      phone,
+      email,
+      issueDescription,
+      issueKey: jiraIssue.key,
+      powerCable,
+      usbCable,
+      invoiceCode,
     });
-    } catch (mailError) {
-      console.error('El. laiško siuntimo klaida:', mailError);
+
+    const requestTimings = [
+      ...timings,
+      {
+        step: 'responseReady',
+        duration: getDurationMs(requestStart),
+      },
+    ];
+
+    try {
+      await appendReport([
+        `=== START ${new Date().toISOString()} issue=${jiraIssue.key}`,
+        `reportPath: ${REPORT_PATH}`,
+        ...requestTimings.map((entry) => `${entry.step}: ${formatMs(entry.duration)}`),
+        'status: queued-background-work',
+        '---',
+      ]);
+    } catch (reportError) {
+      console.error('Nepavyko sukurti pradines ataskaitos:', reportError);
     }
+
+    setTimeout(() => {
+      void runBackgroundRegistrationWork({
+        issueKey: jiraIssue.key,
+        pdfPath: filePath,
+        email,
+        resolvedCompanyName,
+        deviceModel,
+        pdfData,
+        initialTimings: requestTimings,
+      });
+    }, 0);
+
+    logTimingSummary(`request ${jiraIssue.key}`, requestTimings);
 
     return NextResponse.json({
       success: true,
-      message: 'Užklausa sėkmingai sukurta.',
+      message: 'Uzklausa sekmingai sukurta.',
       issueKey: jiraIssue.key,
       jiraIssueId: jiraIssue.id,
       contract,
     });
   } catch (error) {
+    console.error(
+      `[repair-registration request error] total=${formatMs(getDurationMs(requestStart))}`
+    );
     console.error('repair-registration klaida:', error);
 
     return NextResponse.json(
       {
         success: false,
-        message: 'Nepavyko sukurti užklausos Jira sistemoje.',
-        error: error.message || 'Nežinoma klaida',
+        message: 'Nepavyko sukurti uzklausos Jira sistemoje.',
+        error: error.message || 'Nezinoma klaida',
       },
       { status: 500 }
     );
