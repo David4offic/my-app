@@ -476,17 +476,10 @@ export default function Page() {
               </div>
             )}
 
-            {result?.contract?.downloadUrl && (
-              <a
-                href={result.contract.downloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-center font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                <Download size={18} />
-                Atsisiųsti aktą (.docx)
-              </a>
-            )}
+            <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-center text-sm text-slate-600">
+              Priemimo-perdavimo akta gausite el. pastu, o ofise jums bus
+              pateikta ir spausdinta kopija.
+            </p>
 
             <button
               type="button"
@@ -505,3 +498,4 @@ export default function Page() {
     </div>
   );
 }
+
