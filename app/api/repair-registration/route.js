@@ -102,14 +102,11 @@ async function finalizeContractProcessing({
   resolvedCompanyName,
   deviceModel,
 }) {
-  const pdfPath = filePath.replace(/\.docx$/i, '.pdf');
-
   try {
     await ensureDirectory(path.dirname(filePath));
     await fsPromises.writeFile(filePath, contractBuffer);
 
     const convertedPdfPath = await convertDocxToPdf(filePath);
-
     const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssueKey}.pdf`);
     await ensureDirectory(AUTO_PRINT_DIR);
     await fsPromises.copyFile(convertedPdfPath, targetPdfPath);
@@ -149,7 +146,6 @@ export async function POST(request) {
       contactPerson,
       powerCable,
       usbCable,
-      skipJira: skipJiraBody,
     } = body;
 
     if (!phone || !email || !deviceModel || !issueDescription) {
@@ -175,18 +171,15 @@ export async function POST(request) {
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
-    const skipJira = process.env.SKIP_JIRA === 'true' || skipJiraBody;
 
-    const jiraIssue = skipJira
-      ? { key: `SKIP-${Date.now()}`, id: null }
-      : await createJiraIssue({
-          companyName: resolvedCompanyName,
-          phone,
-          email,
-          deviceModel,
-          serialNumber,
-          issueDescription,
-        });
+    const jiraIssue = await createJiraIssue({
+      companyName: resolvedCompanyName,
+      phone,
+      email,
+      deviceModel,
+      serialNumber,
+      issueDescription,
+    });
 
     const now = new Date();
     const metai = String(now.getFullYear());
