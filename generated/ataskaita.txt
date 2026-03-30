@@ -1,0 +1,17 @@
+=== START 2026-03-30T13:45:57.627Z issue=IR-1131
+reportPath: C:\Users\kvadr\Desktop\Forma\my-app\generated\ataskaita.txt
+queueDocxPath: C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx
+requestJson: 2.0 ms
+createJiraIssue: 938.8 ms
+responseReady: 941.6 ms
+status: queued-background-work
+---
+=== 2026-03-30T13:45:57.656Z issue=IR-1131
+requestJson: 2.0 ms
+createJiraIssue: 938.8 ms
+responseReady: 941.6 ms
+generateContract: 255.5 ms
+writeDocx: 7.1 ms
+copyDocxToQueue: 5.2 ms
+sendRepairCreatedEmail: 225.7 ms
+---

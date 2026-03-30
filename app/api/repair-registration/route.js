@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
-import { generatePdf } from '../../../lib/generatePdf';
+import { generateContract } from '../../../lib/generateContract';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
-const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
+const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || path.join(process.cwd(), 'print-queue');
 const fsPromises = fs.promises;
 const GENERATED_DIR = path.join(process.cwd(), 'generated');
 const REPORT_PATH = path.join(GENERATED_DIR, 'ataskaita.txt');
@@ -113,7 +113,15 @@ async function appendReport(lines) {
   await fsPromises.appendFile(REPORT_PATH, lines.join('\n') + '\n');
 }
 
-function createPdfData({
+async function tryReadFile(filePath) {
+  try {
+    return await fsPromises.readFile(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function createContractData({
   manufacturer,
   deviceModel,
   serialNumber,
@@ -124,17 +132,28 @@ function createPdfData({
   email,
   issueDescription,
   issueKey,
+  contactPerson,
   powerCable,
   usbCable,
+  invoiceNeeded,
+  invoiceCompanyName,
   invoiceCode,
+  invoiceVatCode,
 }) {
   const now = new Date();
+  const metai = String(now.getFullYear());
   const data = `${String(now.getDate()).padStart(2, '0')}.${String(
     now.getMonth() + 1
-  ).padStart(2, '0')}.${now.getFullYear()}`;
+  ).padStart(2, '0')}`;
+  const pilna_data = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}-${String(now.getDate()).padStart(2, '0')}`;
 
   return {
+    metai,
     data,
+    pilna_data,
     gamintojas: manufacturer || '',
     modelis: deviceModel || '',
     serijinis: serialNumber || '',
@@ -145,19 +164,24 @@ function createPdfData({
     email: email || '',
     gedimas: issueDescription || '',
     issueKey: issueKey || '',
+    kontaktinis_asmuo: contactPerson || '',
     maitinimo_laidas: !!powerCable,
     usb_laidas: !!usbCable,
-    invoiceCode: invoiceCode || resolvedCompanyName || '',
+    invoiceNeeded: !!invoiceNeeded,
+    invoiceCompanyName: invoiceCompanyName || '',
+    invoiceCode: invoiceCode || '',
+    invoiceVatCode: invoiceVatCode || '',
   };
 }
 
 async function runBackgroundRegistrationWork({
   issueKey,
-  pdfPath,
+  generatedDocxPath,
+  queueDocxPath,
   email,
   resolvedCompanyName,
   deviceModel,
-  pdfData,
+  contractData,
   initialTimings,
 }) {
   const startedAt = new Date().toISOString();
@@ -165,19 +189,18 @@ async function runBackgroundRegistrationWork({
 
   try {
     let stepStart = process.hrtime.bigint();
-    const pdfBuffer = await generatePdf(pdfData);
-    pushTiming(timings, 'generatePdf', stepStart);
+    const contractBuffer = generateContract(contractData);
+    pushTiming(timings, 'generateContract', stepStart);
 
     stepStart = process.hrtime.bigint();
-    await ensureDirectory(path.dirname(pdfPath));
-    await fsPromises.writeFile(pdfPath, pdfBuffer);
-    pushTiming(timings, 'writePdf', stepStart);
+    await ensureDirectory(path.dirname(generatedDocxPath));
+    await fsPromises.writeFile(generatedDocxPath, contractBuffer);
+    pushTiming(timings, 'writeDocx', stepStart);
 
     stepStart = process.hrtime.bigint();
-    const targetPdfPath = path.join(AUTO_PRINT_DIR, `${issueKey}.pdf`);
-    await ensureDirectory(AUTO_PRINT_DIR);
-    await fsPromises.copyFile(pdfPath, targetPdfPath);
-    pushTiming(timings, 'copyPdf', stepStart);
+    await ensureDirectory(path.dirname(queueDocxPath));
+    await fsPromises.copyFile(generatedDocxPath, queueDocxPath);
+    pushTiming(timings, 'copyDocxToQueue', stepStart);
 
     stepStart = process.hrtime.bigint();
     await sendRepairCreatedEmail({
@@ -185,7 +208,10 @@ async function runBackgroundRegistrationWork({
       issueKey,
       companyName: resolvedCompanyName,
       deviceModel,
-      pdfBuffer,
+      attachmentBuffer: contractBuffer,
+      attachmentFileName: `registracija-${issueKey}.docx`,
+      attachmentContentType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
     pushTiming(timings, 'sendRepairCreatedEmail', stepStart);
   } catch (error) {
@@ -235,6 +261,7 @@ export async function POST(request) {
       manufacturer,
       firstName,
       lastName,
+      contactPerson,
       powerCable,
       usbCable,
     } = body;
@@ -272,18 +299,18 @@ export async function POST(request) {
     });
     pushTiming(timings, 'createJiraIssue', stepStart);
 
-    const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.pdf`;
-    const filePath = path.join(GENERATED_DIR, fileName);
+    const generatedDocxFileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
+    const queueDocxFileName = `${jiraIssue.key}.docx`;
+    const generatedDocxPath = path.join(GENERATED_DIR, generatedDocxFileName);
+    const queueDocxPath = path.join(AUTO_PRINT_DIR, queueDocxFileName);
 
     const contract = {
-      fileName,
-      filePath,
-      pdfPath: filePath,
-      pdfPending: true,
-      downloadUrl: `/api/contracts/${encodeURIComponent(fileName)}`,
+      fileName: generatedDocxFileName,
+      filePath: generatedDocxPath,
+      docxPending: true,
     };
 
-    const pdfData = createPdfData({
+    const contractData = createContractData({
       manufacturer,
       deviceModel,
       serialNumber,
@@ -294,9 +321,13 @@ export async function POST(request) {
       email,
       issueDescription,
       issueKey: jiraIssue.key,
+      contactPerson,
       powerCable,
       usbCable,
+      invoiceNeeded,
+      invoiceCompanyName,
       invoiceCode,
+      invoiceVatCode,
     });
 
     const requestTimings = [
@@ -311,6 +342,7 @@ export async function POST(request) {
       await appendReport([
         `=== START ${new Date().toISOString()} issue=${jiraIssue.key}`,
         `reportPath: ${REPORT_PATH}`,
+        `queueDocxPath: ${queueDocxPath}`,
         ...requestTimings.map((entry) => `${entry.step}: ${formatMs(entry.duration)}`),
         'status: queued-background-work',
         '---',
@@ -322,11 +354,12 @@ export async function POST(request) {
     setTimeout(() => {
       void runBackgroundRegistrationWork({
         issueKey: jiraIssue.key,
-        pdfPath: filePath,
+        generatedDocxPath,
+        queueDocxPath,
         email,
         resolvedCompanyName,
         deviceModel,
-        pdfData,
+        contractData,
         initialTimings: requestTimings,
       });
     }, 0);
