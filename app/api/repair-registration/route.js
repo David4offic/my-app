@@ -278,6 +278,7 @@ export async function POST(request) {
         email,
         resolvedCompanyName,
         deviceModel,
+        timings,
       });
     } catch (docError) {
       console.error('DOCX generavimo klaida:', docError);
