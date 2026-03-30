@@ -6,6 +6,7 @@ import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
+const fsPromises = fs.promises;
 
 function toADF(text) {
   return {
@@ -81,6 +82,18 @@ async function createJiraIssue(formData) {
   return result;
 }
 
+async function ensureDirectory(directory) {
+  await fsPromises.mkdir(directory, { recursive: true });
+}
+
+async function tryReadFile(filePath) {
+  try {
+    return await fsPromises.readFile(filePath);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -147,49 +160,39 @@ export async function POST(request) {
     ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     const generatedDir = path.join(process.cwd(), 'generated');
-    if (!fs.existsSync(generatedDir)) {
-      fs.mkdirSync(generatedDir, { recursive: true });
-    }
+    await ensureDirectory(generatedDir);
 
     let contract = null;
     let pdfPath = null;
-    console.log('REPAIR BODY:', body);
-    console.log('INVOICE VALUES:', {
-      invoiceNeeded,
-      invoiceCompanyName,
-      invoiceCode,
-      invoiceVatCode,
-    });
 
     try {
-        const contractBuffer = generateContract({
-          metai,
-          data,
-          pilna_data,
-          gamintojas: manufacturer || '',
-          modelis: deviceModel || '',
-          serijinis: serialNumber || '',
-          vardas: firstName || '',
-          pavarde: lastName || '',
-          imone: resolvedCompanyName || '',
-          telefonas: phone || '',
-          email: email || '',
-          gedimas: issueDescription || '',
-          issueKey: jiraIssue.key || '',
-          kontaktinis_asmuo: contactPerson || '',
-          maitinimo_laidas: !!powerCable,
-          usb_laidas: !!usbCable,
-          invoiceNeeded: !!invoiceNeeded,
-          invoiceCompanyName: invoiceCompanyName || '',
-          invoiceCode: invoiceCode || '',
-          invoiceVatCode: invoiceVatCode || '',
-        });
-
+      const contractBuffer = generateContract({
+        metai,
+        data,
+        pilna_data,
+        gamintojas: manufacturer || '',
+        modelis: deviceModel || '',
+        serijinis: serialNumber || '',
+        vardas: firstName || '',
+        pavarde: lastName || '',
+        imone: resolvedCompanyName || '',
+        telefonas: phone || '',
+        email: email || '',
+        gedimas: issueDescription || '',
+        issueKey: jiraIssue.key || '',
+        kontaktinis_asmuo: contactPerson || '',
+        maitinimo_laidas: !!powerCable,
+        usb_laidas: !!usbCable,
+        invoiceNeeded: !!invoiceNeeded,
+        invoiceCompanyName: invoiceCompanyName || '',
+        invoiceCode: invoiceCode || '',
+        invoiceVatCode: invoiceVatCode || '',
+      });
 
       const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
       const filePath = path.join(generatedDir, fileName);
 
-      fs.writeFileSync(filePath, contractBuffer);
+      await fsPromises.writeFile(filePath, contractBuffer);
 
       try {
         pdfPath = await convertDocxToPdf(filePath);
@@ -207,28 +210,26 @@ export async function POST(request) {
     }
 
     try {
-      if (pdfPath && fs.existsSync(pdfPath)) {
+      if (pdfPath) {
         try {
           const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssue.key}.pdf`);
-
-          if (!fs.existsSync(AUTO_PRINT_DIR)) {
-            fs.mkdirSync(AUTO_PRINT_DIR, { recursive: true });
-          }
-
-          fs.copyFileSync(pdfPath, targetPdfPath);
+          await ensureDirectory(AUTO_PRINT_DIR);
+          await fsPromises.copyFile(pdfPath, targetPdfPath);
           console.log('Kopija įrašyta:', targetPdfPath);
         } catch (copyError) {
           console.error('PDF kopijavimo klaida į AutoPrint Inbox:', copyError);
         }
       }
 
-    await sendRepairCreatedEmail({
-      to: email,
-      issueKey: jiraIssue.key,
-      companyName: resolvedCompanyName,
-      deviceModel,
-      pdfBuffer: pdfPath && fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath) : null,
-    });
+      const pdfBuffer = pdfPath ? await tryReadFile(pdfPath) : null;
+
+      await sendRepairCreatedEmail({
+        to: email,
+        issueKey: jiraIssue.key,
+        companyName: resolvedCompanyName,
+        deviceModel,
+        pdfBuffer,
+      });
     } catch (mailError) {
       console.error('El. laiško siuntimo klaida:', mailError);
     }

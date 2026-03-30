@@ -4,22 +4,13 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
   try {
-    const { fileName } = await params;
+    const { fileName } = params;
 
     const safeFileName = path.basename(fileName);
     const filePath = path.join(process.cwd(), 'generated', safeFileName);
 
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Failas nerastas.',
-        },
-        { status: 404 }
-      );
-    }
-
-    const fileBuffer = fs.readFileSync(filePath);
+    await fs.promises.access(filePath);
+    const fileBuffer = await fs.promises.readFile(filePath);
 
     return new NextResponse(fileBuffer, {
       status: 200,
