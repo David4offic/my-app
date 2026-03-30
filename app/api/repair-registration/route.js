@@ -340,6 +340,18 @@ export async function POST(request) {
       },
     ];
 
+    try {
+      await appendReport([
+        `=== START ${new Date().toISOString()} issue=${jiraIssue.key}`,
+        `reportPath: ${REPORT_PATH}`,
+        ...requestTimings.map((entry) => `${entry.step}: ${formatMs(entry.duration)}`),
+        'status: queued-background-work',
+        '---',
+      ]);
+    } catch (reportError) {
+      console.error('Nepavyko sukurti pradines ataskaitos:', reportError);
+    }
+
     setTimeout(() => {
       void runBackgroundRegistrationWork({
         issueKey: jiraIssue.key,
