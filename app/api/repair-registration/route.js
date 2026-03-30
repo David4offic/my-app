@@ -95,6 +95,7 @@ async function tryReadFile(filePath) {
 }
 
 async function finalizeContractProcessing({
+  contractBuffer,
   filePath,
   jiraIssueKey,
   email,
@@ -104,6 +105,9 @@ async function finalizeContractProcessing({
   const pdfPath = filePath.replace(/\.docx$/i, '.pdf');
 
   try {
+    await ensureDirectory(path.dirname(filePath));
+    await fsPromises.writeFile(filePath, contractBuffer);
+
     const convertedPdfPath = await convertDocxToPdf(filePath);
 
     const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssueKey}.pdf`);
@@ -190,10 +194,8 @@ export async function POST(request) {
     ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     const generatedDir = path.join(process.cwd(), 'generated');
-    await ensureDirectory(generatedDir);
 
     let contract = null;
-    let pdfPath = null;
 
     try {
       const contractBuffer = generateContract({
@@ -222,8 +224,6 @@ export async function POST(request) {
       const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
       const filePath = path.join(generatedDir, fileName);
 
-      await fsPromises.writeFile(filePath, contractBuffer);
-
       contract = {
         fileName,
         filePath,
@@ -232,6 +232,7 @@ export async function POST(request) {
       };
 
       void finalizeContractProcessing({
+        contractBuffer,
         filePath,
         jiraIssueKey: jiraIssue.key,
         email,
@@ -244,7 +245,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Užklausa sėkmingai sukurta. PDF konvertavimas ir el. paštas bus apdoroti foniniu režimu.',
+      message: 'Užklausa sėkmingai sukurta.',
       issueKey: jiraIssue.key,
       jiraIssueId: jiraIssue.id,
       contract,
