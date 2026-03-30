@@ -12,6 +12,17 @@ const REPORT_PATH = path.join(process.cwd(), 'generated', 'ataskaita.txt');
 const getDurationMs = (start) => Number(process.hrtime.bigint() - start) / 1_000_000;
 const formatMs = (value) => `${value.toFixed(1)} ms`;
 
+function logTimingSummary(issueKey, timings) {
+  const summary = timings
+    .map(
+      (entry) =>
+        `${entry.step}=${entry.duration.toFixed(1)}ms${entry.error ? ` ERROR:${entry.error}` : ''}`
+    )
+    .join(' | ');
+
+  console.log(`[repair-registration timings ${issueKey}] ${summary}`);
+}
+
 function toADF(text) {
   return {
     type: 'doc',
@@ -163,8 +174,14 @@ async function finalizeContractProcessing({
 }
 
 export async function POST(request) {
+  const requestStart = process.hrtime.bigint();
+
   try {
+    const timings = [];
+
+    let stepStart = process.hrtime.bigint();
     const body = await request.json();
+    timings.push({ step: 'requestJson', duration: getDurationMs(stepStart) });
 
     const {
       companyName,
@@ -208,9 +225,8 @@ export async function POST(request) {
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
-    const timings = [];
 
-    let stepStart = process.hrtime.bigint();
+    stepStart = process.hrtime.bigint();
     const jiraIssue = await createJiraIssue({
       companyName: resolvedCompanyName,
       phone,
@@ -288,6 +304,9 @@ export async function POST(request) {
       console.error('DOCX generavimo klaida:', docError);
     }
 
+    timings.push({ step: 'total', duration: getDurationMs(requestStart) });
+    logTimingSummary(jiraIssue.key, timings);
+
     return NextResponse.json({
       success: true,
       message: 'Užklausa sėkmingai sukurta.',
@@ -296,6 +315,9 @@ export async function POST(request) {
       contract,
     });
   } catch (error) {
+    console.error(
+      `[repair-registration timings error] total=${formatMs(getDurationMs(requestStart))}`
+    );
     console.error('repair-registration klaida:', error);
 
     return NextResponse.json(
