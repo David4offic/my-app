@@ -94,6 +94,36 @@ async function tryReadFile(filePath) {
   }
 }
 
+async function finalizeContractProcessing({
+  filePath,
+  jiraIssueKey,
+  email,
+  resolvedCompanyName,
+  deviceModel,
+}) {
+  const pdfPath = filePath.replace(/\.docx$/i, '.pdf');
+
+  try {
+    const convertedPdfPath = await convertDocxToPdf(filePath);
+
+    const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssueKey}.pdf`);
+    await ensureDirectory(AUTO_PRINT_DIR);
+    await fsPromises.copyFile(convertedPdfPath, targetPdfPath);
+    console.log('Kopija įrašyta:', targetPdfPath);
+
+    const pdfBuffer = await tryReadFile(convertedPdfPath);
+    await sendRepairCreatedEmail({
+      to: email,
+      issueKey: jiraIssueKey,
+      companyName: resolvedCompanyName,
+      deviceModel,
+      pdfBuffer,
+    });
+  } catch (error) {
+    console.error('Foninis apdorojimas nepavyko:', error);
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -194,49 +224,27 @@ export async function POST(request) {
 
       await fsPromises.writeFile(filePath, contractBuffer);
 
-      try {
-        pdfPath = await convertDocxToPdf(filePath);
-      } catch (pdfError) {
-        console.error('PDF generavimo klaida:', pdfError);
-      }
-
       contract = {
         fileName,
         filePath,
-        pdfPath,
+        pdfPath: null,
+        pdfPending: true,
       };
+
+      void finalizeContractProcessing({
+        filePath,
+        jiraIssueKey: jiraIssue.key,
+        email,
+        resolvedCompanyName,
+        deviceModel,
+      });
     } catch (docError) {
       console.error('DOCX generavimo klaida:', docError);
     }
 
-    try {
-      if (pdfPath) {
-        try {
-          const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssue.key}.pdf`);
-          await ensureDirectory(AUTO_PRINT_DIR);
-          await fsPromises.copyFile(pdfPath, targetPdfPath);
-          console.log('Kopija įrašyta:', targetPdfPath);
-        } catch (copyError) {
-          console.error('PDF kopijavimo klaida į AutoPrint Inbox:', copyError);
-        }
-      }
-
-      const pdfBuffer = pdfPath ? await tryReadFile(pdfPath) : null;
-
-      await sendRepairCreatedEmail({
-        to: email,
-        issueKey: jiraIssue.key,
-        companyName: resolvedCompanyName,
-        deviceModel,
-        pdfBuffer,
-      });
-    } catch (mailError) {
-      console.error('El. laiško siuntimo klaida:', mailError);
-    }
-
     return NextResponse.json({
       success: true,
-      message: 'Užklausa sėkmingai sukurta.',
+      message: 'Užklausa sėkmingai sukurta. PDF konvertavimas ir el. paštas bus apdoroti foniniu režimu.',
       issueKey: jiraIssue.key,
       jiraIssueId: jiraIssue.id,
       contract,
