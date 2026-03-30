@@ -7,12 +7,13 @@ import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
 const fsPromises = fs.promises;
-const REPORT_PATH = path.join(process.cwd(), 'generated', 'ataskaita.txt');
+const GENERATED_DIR = path.join(process.cwd(), 'generated');
+const REPORT_PATH = path.join(GENERATED_DIR, 'ataskaita.txt');
 
 const getDurationMs = (start) => Number(process.hrtime.bigint() - start) / 1_000_000;
 const formatMs = (value) => `${value.toFixed(1)} ms`;
 
-function logTimingSummary(issueKey, timings) {
+function logTimingSummary(label, timings) {
   const summary = timings
     .map(
       (entry) =>
@@ -20,7 +21,15 @@ function logTimingSummary(issueKey, timings) {
     )
     .join(' | ');
 
-  console.log(`[repair-registration timings ${issueKey}] ${summary}`);
+  console.log(`[repair-registration ${label}] ${summary}`);
+}
+
+function pushTiming(timings, step, startedAt, error) {
+  timings.push({
+    step,
+    duration: getDurationMs(startedAt),
+    ...(error ? { error: String(error) } : {}),
+  });
 }
 
 function toADF(text) {
@@ -48,7 +57,7 @@ function getBasicAuthHeader() {
   const token = process.env.JIRA_API_TOKEN;
 
   if (!email || !token) {
-    throw new Error('Trūksta JIRA_EMAIL arba JIRA_API_TOKEN .env faile');
+    throw new Error('Truksta JIRA_EMAIL arba JIRA_API_TOKEN .env faile');
   }
 
   return `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`;
@@ -58,7 +67,7 @@ async function createJiraIssue(formData) {
   const jiraBaseUrl = process.env.JIRA_BASE_URL;
 
   if (!jiraBaseUrl) {
-    throw new Error('Trūksta JIRA_BASE_URL .env faile');
+    throw new Error('Truksta JIRA_BASE_URL .env faile');
   }
 
   const summary = `${formData.deviceModel} - ${formData.companyName}`;
@@ -69,7 +78,6 @@ async function createJiraIssue(formData) {
       issuetype: { id: '10006' },
       summary,
       description: toADF(formData.issueDescription),
-
       customfield_10080: formData.companyName || '',
       customfield_10069: formData.phone || '',
       customfield_10068: formData.email || '',
@@ -114,62 +122,121 @@ async function tryReadFile(filePath) {
   }
 }
 
-async function finalizeContractProcessing({
-  contractBuffer,
+function createContractData({
+  manufacturer,
+  deviceModel,
+  serialNumber,
+  firstName,
+  lastName,
+  resolvedCompanyName,
+  phone,
+  email,
+  issueDescription,
+  issueKey,
+  contactPerson,
+  powerCable,
+  usbCable,
+  invoiceNeeded,
+  invoiceCompanyName,
+  invoiceCode,
+  invoiceVatCode,
+}) {
+  const now = new Date();
+  const metai = String(now.getFullYear());
+  const data = `${String(now.getDate()).padStart(2, '0')}.${String(
+    now.getMonth() + 1
+  ).padStart(2, '0')}`;
+  const pilna_data = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}-${String(now.getDate()).padStart(2, '0')}`;
+
+  return {
+    metai,
+    data,
+    pilna_data,
+    gamintojas: manufacturer || '',
+    modelis: deviceModel || '',
+    serijinis: serialNumber || '',
+    vardas: firstName || '',
+    pavarde: lastName || '',
+    imone: resolvedCompanyName || '',
+    telefonas: phone || '',
+    email: email || '',
+    gedimas: issueDescription || '',
+    issueKey: issueKey || '',
+    kontaktinis_asmuo: contactPerson || '',
+    maitinimo_laidas: !!powerCable,
+    usb_laidas: !!usbCable,
+    invoiceNeeded: !!invoiceNeeded,
+    invoiceCompanyName: invoiceCompanyName || '',
+    invoiceCode: invoiceCode || '',
+    invoiceVatCode: invoiceVatCode || '',
+  };
+}
+
+async function runBackgroundRegistrationWork({
+  issueKey,
   filePath,
-  jiraIssueKey,
   email,
   resolvedCompanyName,
   deviceModel,
-  timings,
+  contractData,
+  initialTimings,
 }) {
-  const reportLines = [];
-  const reportTimestamp = new Date().toISOString();
-  let stepStart;
+  const startedAt = new Date().toISOString();
+  const timings = [...initialTimings];
 
   try {
+    let stepStart = process.hrtime.bigint();
+    const contractBuffer = generateContract(contractData);
+    pushTiming(timings, 'generateContract', stepStart);
+
     stepStart = process.hrtime.bigint();
     await ensureDirectory(path.dirname(filePath));
     await fsPromises.writeFile(filePath, contractBuffer);
-    timings.push({ step: 'writeDocx', duration: getDurationMs(stepStart) });
+    pushTiming(timings, 'writeDocx', stepStart);
 
     stepStart = process.hrtime.bigint();
     const convertedPdfPath = await convertDocxToPdf(filePath);
-    timings.push({ step: 'convertDocxToPdf', duration: getDurationMs(stepStart) });
+    pushTiming(timings, 'convertDocxToPdf', stepStart);
 
     stepStart = process.hrtime.bigint();
-    const targetPdfPath = path.join(AUTO_PRINT_DIR, `${jiraIssueKey}.pdf`);
+    const targetPdfPath = path.join(AUTO_PRINT_DIR, `${issueKey}.pdf`);
     await ensureDirectory(AUTO_PRINT_DIR);
     await fsPromises.copyFile(convertedPdfPath, targetPdfPath);
-    timings.push({ step: 'copyPdf', duration: getDurationMs(stepStart) });
-    console.log('Kopija įrašyta:', targetPdfPath);
+    pushTiming(timings, 'copyPdf', stepStart);
 
     stepStart = process.hrtime.bigint();
     const pdfBuffer = await tryReadFile(convertedPdfPath);
     await sendRepairCreatedEmail({
       to: email,
-      issueKey: jiraIssueKey,
+      issueKey,
       companyName: resolvedCompanyName,
       deviceModel,
       pdfBuffer,
     });
-    timings.push({ step: 'sendRepairCreatedEmail', duration: getDurationMs(stepStart) });
+    pushTiming(timings, 'sendRepairCreatedEmail', stepStart);
   } catch (error) {
     console.error('Foninis apdorojimas nepavyko:', error);
-    timings.push({ step: 'finalizeError', duration: 0, error: String(error) });
+    timings.push({ step: 'backgroundError', duration: 0, error: String(error) });
   } finally {
-    reportLines.push(`=== ${reportTimestamp} issue=${jiraIssueKey}`);
-    for (const entry of timings) {
-      reportLines.push(
-        `${entry.step}: ${formatMs(entry.duration)}${entry.error ? ' ERROR: ' + entry.error : ''}`
-      );
-    }
-    reportLines.push('---');
+    const reportLines = [
+      `=== ${startedAt} issue=${issueKey}`,
+      ...timings.map(
+        (entry) =>
+          `${entry.step}: ${formatMs(entry.duration)}${entry.error ? ` ERROR: ${entry.error}` : ''}`
+      ),
+      '---',
+    ];
+
     try {
       await appendReport(reportLines);
     } catch (reportError) {
-      console.error('Ataskaitos rašymo klaida:', reportError);
+      console.error('Ataskaitos rasymo klaida:', reportError);
     }
+
+    logTimingSummary(`background ${issueKey}`, timings);
   }
 }
 
@@ -181,7 +248,7 @@ export async function POST(request) {
 
     let stepStart = process.hrtime.bigint();
     const body = await request.json();
-    timings.push({ step: 'requestJson', duration: getDurationMs(stepStart) });
+    pushTiming(timings, 'requestJson', stepStart);
 
     const {
       companyName,
@@ -206,22 +273,20 @@ export async function POST(request) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Užpildykite visus privalomus laukus.',
+          message: 'Uzpildykite visus privalomus laukus.',
         },
         { status: 400 }
       );
     }
 
-    if (invoiceNeeded) {
-      if (!invoiceCompanyName || !invoiceCode || !invoiceVatCode) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Užpildykite sąskaitos faktūros laukus.',
-          },
-          { status: 400 }
-        );
-      }
+    if (invoiceNeeded && (!invoiceCompanyName || !invoiceCode || !invoiceVatCode)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Uzpildykite saskaitos fakturos laukus.',
+        },
+        { status: 400 }
+      );
     }
 
     const resolvedCompanyName = invoiceNeeded ? invoiceCompanyName : companyName;
@@ -235,96 +300,78 @@ export async function POST(request) {
       serialNumber,
       issueDescription,
     });
-    timings.push({ step: 'createJiraIssue', duration: getDurationMs(stepStart) });
+    pushTiming(timings, 'createJiraIssue', stepStart);
 
-    stepStart = process.hrtime.bigint();
+    const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
+    const filePath = path.join(GENERATED_DIR, fileName);
 
-    const now = new Date();
-    const metai = String(now.getFullYear());
-    const data = `${String(now.getDate()).padStart(2, '0')}.${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}`;
-    const pilna_data = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const contract = {
+      fileName,
+      filePath,
+      pdfPath: null,
+      pdfPending: true,
+    };
 
-    const generatedDir = path.join(process.cwd(), 'generated');
+    const contractData = createContractData({
+      manufacturer,
+      deviceModel,
+      serialNumber,
+      firstName,
+      lastName,
+      resolvedCompanyName,
+      phone,
+      email,
+      issueDescription,
+      issueKey: jiraIssue.key,
+      contactPerson,
+      powerCable,
+      usbCable,
+      invoiceNeeded,
+      invoiceCompanyName,
+      invoiceCode,
+      invoiceVatCode,
+    });
 
-    let contract = null;
+    const requestTimings = [
+      ...timings,
+      {
+        step: 'responseReady',
+        duration: getDurationMs(requestStart),
+      },
+    ];
 
-    try {
-      const contractBuffer = generateContract({
-        metai,
-        data,
-        pilna_data,
-        gamintojas: manufacturer || '',
-        modelis: deviceModel || '',
-        serijinis: serialNumber || '',
-        vardas: firstName || '',
-        pavarde: lastName || '',
-        imone: resolvedCompanyName || '',
-        telefonas: phone || '',
-        email: email || '',
-        gedimas: issueDescription || '',
-        issueKey: jiraIssue.key || '',
-        kontaktinis_asmuo: contactPerson || '',
-        maitinimo_laidas: !!powerCable,
-        usb_laidas: !!usbCable,
-        invoiceNeeded: !!invoiceNeeded,
-        invoiceCompanyName: invoiceCompanyName || '',
-        invoiceCode: invoiceCode || '',
-        invoiceVatCode: invoiceVatCode || '',
-      });
-      timings.push({ step: 'generateContract', duration: getDurationMs(stepStart) });
-
-      const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
-      const filePath = path.join(generatedDir, fileName);
-
-      contract = {
-        fileName,
+    setTimeout(() => {
+      void runBackgroundRegistrationWork({
+        issueKey: jiraIssue.key,
         filePath,
-        pdfPath: null,
-        pdfPending: true,
-      };
-
-      await appendReport([
-        `=== START ${new Date().toISOString()} issue=${jiraIssue.key}`,
-      ]);
-
-      void finalizeContractProcessing({
-        contractBuffer,
-        filePath,
-        jiraIssueKey: jiraIssue.key,
         email,
         resolvedCompanyName,
         deviceModel,
-        timings,
+        contractData,
+        initialTimings: requestTimings,
       });
-    } catch (docError) {
-      console.error('DOCX generavimo klaida:', docError);
-    }
+    }, 0);
 
-    timings.push({ step: 'total', duration: getDurationMs(requestStart) });
-    logTimingSummary(jiraIssue.key, timings);
+    logTimingSummary(`request ${jiraIssue.key}`, requestTimings);
 
     return NextResponse.json({
       success: true,
-      message: 'Užklausa sėkmingai sukurta.',
+      message: 'Uzklausa sekmingai sukurta.',
       issueKey: jiraIssue.key,
       jiraIssueId: jiraIssue.id,
       contract,
     });
   } catch (error) {
     console.error(
-      `[repair-registration timings error] total=${formatMs(getDurationMs(requestStart))}`
+      `[repair-registration request error] total=${formatMs(getDurationMs(requestStart))}`
     );
     console.error('repair-registration klaida:', error);
 
     return NextResponse.json(
       {
         success: false,
-        message: 'Nepavyko sukurti užklausos Jira sistemoje.',
-        error: error.message || 'Nežinoma klaida',
+        message: 'Nepavyko sukurti uzklausos Jira sistemoje.',
+        error: error.message || 'Nezinoma klaida',
       },
       { status: 500 }
     );
