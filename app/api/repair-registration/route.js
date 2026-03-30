@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
-import { generateContract } from '../../../lib/generateContract';
-import { convertDocxToPdf } from '../../../lib/convertDocxToPdf';
+import { generatePdf } from '../../../lib/generatePdf';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || '/home/pi/AutoPrint/Inbox';
@@ -114,15 +113,7 @@ async function appendReport(lines) {
   await fsPromises.appendFile(REPORT_PATH, lines.join('\n') + '\n');
 }
 
-async function tryReadFile(filePath) {
-  try {
-    return await fsPromises.readFile(filePath);
-  } catch {
-    return null;
-  }
-}
-
-function createContractData({
+function createPdfData({
   manufacturer,
   deviceModel,
   serialNumber,
@@ -133,28 +124,17 @@ function createContractData({
   email,
   issueDescription,
   issueKey,
-  contactPerson,
   powerCable,
   usbCable,
-  invoiceNeeded,
-  invoiceCompanyName,
   invoiceCode,
-  invoiceVatCode,
 }) {
   const now = new Date();
-  const metai = String(now.getFullYear());
   const data = `${String(now.getDate()).padStart(2, '0')}.${String(
     now.getMonth() + 1
-  ).padStart(2, '0')}`;
-  const pilna_data = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-    2,
-    '0'
-  )}-${String(now.getDate()).padStart(2, '0')}`;
+  ).padStart(2, '0')}.${now.getFullYear()}`;
 
   return {
-    metai,
     data,
-    pilna_data,
     gamintojas: manufacturer || '',
     modelis: deviceModel || '',
     serijinis: serialNumber || '',
@@ -165,23 +145,19 @@ function createContractData({
     email: email || '',
     gedimas: issueDescription || '',
     issueKey: issueKey || '',
-    kontaktinis_asmuo: contactPerson || '',
     maitinimo_laidas: !!powerCable,
     usb_laidas: !!usbCable,
-    invoiceNeeded: !!invoiceNeeded,
-    invoiceCompanyName: invoiceCompanyName || '',
-    invoiceCode: invoiceCode || '',
-    invoiceVatCode: invoiceVatCode || '',
+    invoiceCode: invoiceCode || resolvedCompanyName || '',
   };
 }
 
 async function runBackgroundRegistrationWork({
   issueKey,
-  filePath,
+  pdfPath,
   email,
   resolvedCompanyName,
   deviceModel,
-  contractData,
+  pdfData,
   initialTimings,
 }) {
   const startedAt = new Date().toISOString();
@@ -189,26 +165,21 @@ async function runBackgroundRegistrationWork({
 
   try {
     let stepStart = process.hrtime.bigint();
-    const contractBuffer = generateContract(contractData);
-    pushTiming(timings, 'generateContract', stepStart);
+    const pdfBuffer = await generatePdf(pdfData);
+    pushTiming(timings, 'generatePdf', stepStart);
 
     stepStart = process.hrtime.bigint();
-    await ensureDirectory(path.dirname(filePath));
-    await fsPromises.writeFile(filePath, contractBuffer);
-    pushTiming(timings, 'writeDocx', stepStart);
-
-    stepStart = process.hrtime.bigint();
-    const convertedPdfPath = await convertDocxToPdf(filePath);
-    pushTiming(timings, 'convertDocxToPdf', stepStart);
+    await ensureDirectory(path.dirname(pdfPath));
+    await fsPromises.writeFile(pdfPath, pdfBuffer);
+    pushTiming(timings, 'writePdf', stepStart);
 
     stepStart = process.hrtime.bigint();
     const targetPdfPath = path.join(AUTO_PRINT_DIR, `${issueKey}.pdf`);
     await ensureDirectory(AUTO_PRINT_DIR);
-    await fsPromises.copyFile(convertedPdfPath, targetPdfPath);
+    await fsPromises.copyFile(pdfPath, targetPdfPath);
     pushTiming(timings, 'copyPdf', stepStart);
 
     stepStart = process.hrtime.bigint();
-    const pdfBuffer = await tryReadFile(convertedPdfPath);
     await sendRepairCreatedEmail({
       to: email,
       issueKey,
@@ -264,7 +235,6 @@ export async function POST(request) {
       manufacturer,
       firstName,
       lastName,
-      contactPerson,
       powerCable,
       usbCable,
     } = body;
@@ -302,17 +272,18 @@ export async function POST(request) {
     });
     pushTiming(timings, 'createJiraIssue', stepStart);
 
-    const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.docx`;
+    const fileName = `priemimo-perdavimo-aktas-${jiraIssue.key}.pdf`;
     const filePath = path.join(GENERATED_DIR, fileName);
 
     const contract = {
       fileName,
       filePath,
-      pdfPath: null,
+      pdfPath: filePath,
       pdfPending: true,
+      downloadUrl: `/api/contracts/${encodeURIComponent(fileName)}`,
     };
 
-    const contractData = createContractData({
+    const pdfData = createPdfData({
       manufacturer,
       deviceModel,
       serialNumber,
@@ -323,13 +294,9 @@ export async function POST(request) {
       email,
       issueDescription,
       issueKey: jiraIssue.key,
-      contactPerson,
       powerCable,
       usbCable,
-      invoiceNeeded,
-      invoiceCompanyName,
       invoiceCode,
-      invoiceVatCode,
     });
 
     const requestTimings = [
@@ -355,11 +322,11 @@ export async function POST(request) {
     setTimeout(() => {
       void runBackgroundRegistrationWork({
         issueKey: jiraIssue.key,
-        filePath,
+        pdfPath: filePath,
         email,
         resolvedCompanyName,
         deviceModel,
-        contractData,
+        pdfData,
         initialTimings: requestTimings,
       });
     }, 0);
