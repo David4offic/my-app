@@ -271,6 +271,10 @@ export async function POST(request) {
         pdfPending: true,
       };
 
+      await appendReport([
+        `=== START ${new Date().toISOString()} issue=${jiraIssue.key}`,
+      ]);
+
       void finalizeContractProcessing({
         contractBuffer,
         filePath,
