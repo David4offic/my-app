@@ -32,21 +32,16 @@ function Print-Docx {
     [string]$TargetPrinter
   )
 
-  $word = $null
-  $document = $null
-
   for ($attempt = 1; $attempt -le 5; $attempt++) {
     try {
-      $word = New-Object -ComObject Word.Application
-      $word.Visible = $false
-      $word.DisplayAlerts = 0
-      $document = $word.Documents.Open($FilePath, $false, $true)
+      $arguments = @('/q', '/n', '/mFilePrintDefault', $FilePath)
+      $process = Start-Process -FilePath 'winword.exe' -ArgumentList $arguments -PassThru
+      $process.WaitForExit()
 
-      if ($TargetPrinter) {
-        $word.ActivePrinter = $TargetPrinter
+      if ($process.ExitCode -ne 0) {
+        throw "Word spausdinimas baigesi su klaidos kodu $($process.ExitCode)"
       }
 
-      $document.PrintOut()
       return
     } catch {
       if ($attempt -eq 5) {
@@ -54,16 +49,6 @@ function Print-Docx {
       }
 
       Start-Sleep -Seconds 2
-    } finally {
-      if ($document) {
-        $document.Close([ref]0)
-        $document = $null
-      }
-
-      if ($word) {
-        $word.Quit()
-        $word = $null
-      }
     }
   }
 }

@@ -1,7 +1,5 @@
-2026-03-30 16:44:19 [start] watch=C:\Users\kvadr\Desktop\Forma\my-app\print-queue printer=canon 1238 buhalterija
-2026-03-30 16:45:59 [print] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx
-2026-03-30 16:46:04 [error] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx :: Call was rejected by callee. (Exception from HRESULT: 0x80010001 (RPC_E_CALL_REJECTED))
-2026-03-30 16:46:05 [print] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx
-2026-03-30 16:46:13 [error] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx :: The process cannot access the file because it is being used by another process.
-2026-03-30 16:46:14 [print] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx
-2026-03-30 16:46:22 [error] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1131.docx :: The process cannot access the file because it is being used by another process.
+2026-03-30 16:57:56 [start] watch=C:\Users\kvadr\Desktop\Forma\my-app\print-queue printer=canon 1238 buhalterija
+2026-03-30 16:59:00 [print] C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1133.docx
+2026-03-30 16:59:18 [done] moved IR-1133.docx -> C:\Users\kvadr\Desktop\Forma\my-app\print-queue\printed\IR-1133.docx
+2026-03-30 16:59:18 [skip] missing C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1133.docx
+2026-03-30 16:59:18 [skip] missing C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1133.docx
