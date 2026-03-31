@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import {
   Building2,
-  Printer,
   Send,
   Info,
   Headphones,
@@ -117,11 +116,12 @@ export default function Page() {
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <Printer size={20} />
-            </div>
-            <p className="text-xl font-black tracking-tight">4office</p>
+          <div className="flex items-center">
+            <img
+              src="/logo.svg"
+              alt="4office"
+              className="h-10 w-auto md:h-12"
+            />
           </div>
         </div>
       </header>
