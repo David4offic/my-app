@@ -49,3 +49,37 @@ writeDocx: 4.2 ms
 copyDocxToQueue: 6.2 ms
 sendRepairCreatedEmail: 240.2 ms
 ---
+=== START 2026-03-31T05:10:08.006Z issue=IR-1134
+reportPath: C:\Users\kvadr\Desktop\Forma\my-app\generated\ataskaita.txt
+queueDocxPath: C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1134.docx
+requestJson: 1.1 ms
+createJiraIssue: 1432.8 ms
+responseReady: 1434.4 ms
+status: queued-background-work
+---
+=== 2026-03-31T05:10:08.024Z issue=IR-1134
+requestJson: 1.1 ms
+createJiraIssue: 1432.8 ms
+responseReady: 1434.4 ms
+generateContract: 151.9 ms
+writeDocx: 4.6 ms
+copyDocxToQueue: 4.8 ms
+sendRepairCreatedEmail: 602.9 ms
+---
+=== START 2026-03-31T06:36:17.522Z issue=IR-1135
+reportPath: C:\Users\kvadr\Desktop\Forma\my-app\generated\ataskaita.txt
+queueDocxPath: C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1135.docx
+requestJson: 2.8 ms
+createJiraIssue: 1585.3 ms
+responseReady: 1588.4 ms
+status: queued-background-work
+---
+=== 2026-03-31T06:36:17.532Z issue=IR-1135
+requestJson: 2.8 ms
+createJiraIssue: 1585.3 ms
+responseReady: 1588.4 ms
+generateContract: 142.5 ms
+writeDocx: 6.2 ms
+copyDocxToQueue: 4.6 ms
+sendRepairCreatedEmail: 969.2 ms
+---

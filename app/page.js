@@ -132,8 +132,7 @@ export default function Page() {
             Registruoti gedimą
           </h1>
           <p className="mt-2 text-lg text-slate-600">
-            Užpildykite formą ir mūsų technikai susisieks su jumis per 2 darbo
-            valandas.
+            Užpildykite formą ir mūsų technikai susisieks su jumis per 2 d.d.
           </p>
         </div>
 
@@ -174,6 +173,7 @@ export default function Page() {
                     id="invoiceCompanyName"
                     name="invoiceCompanyName"
                     type="text"
+                    autoComplete="organization"
                     value={form.invoiceCompanyName}
                     onChange={handleChange}
                     placeholder="UAB Testas"
@@ -189,6 +189,9 @@ export default function Page() {
                     id="invoiceCode"
                     name="invoiceCode"
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
                     value={form.invoiceCode}
                     onChange={handleChange}
                     placeholder="123456789"
@@ -204,6 +207,7 @@ export default function Page() {
                     id="invoiceVatCode"
                     name="invoiceVatCode"
                     type="text"
+                    autoComplete="off"
                     value={form.invoiceVatCode}
                     onChange={handleChange}
                     placeholder="LT123456789"
@@ -260,6 +264,8 @@ export default function Page() {
                 id="phone"
                 name="phone"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 required
                 value={form.phone}
                 onChange={handleChange}
@@ -279,6 +285,8 @@ export default function Page() {
                 id="email"
                 name="email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 required
                 value={form.email}
                 onChange={handleChange}
@@ -446,7 +454,7 @@ export default function Page() {
             <p className="font-bold text-slate-900">Reikia skubios pagalbos?</p>
             <p className="text-sm text-slate-600">
               Skambinkite tel.{' '}
-              <span className="font-bold text-blue-600">+370 600 00000</span>{' '}
+              <span className="font-bold text-blue-600">+370 5 230 5365</span>{' '}
               (I-V, 8:00 - 17:00)
             </p>
           </div>
@@ -501,7 +509,7 @@ export default function Page() {
       )}
 
       <footer className="py-10 text-center text-sm text-slate-400">
-        <p>© 2024 4office. Visos teisės saugomos.</p>
+        <p>© 2026 4office. Visos teisės saugomos.</p>
       </footer>
     </div>
   );

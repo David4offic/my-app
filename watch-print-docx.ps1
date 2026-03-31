@@ -2,11 +2,13 @@ param(
   [string]$WatchDir = "$PSScriptRoot\print-queue",
   [string]$PrintedDir = "$PSScriptRoot\print-queue\printed",
   [string]$LogFile = "$PSScriptRoot\print-queue\watch-print-docx.log",
-  [string]$PrinterName = ""
+  [string]$PrinterName = "",
+  [bool]$KillWordAfterPrint = $true
 )
 
 $ErrorActionPreference = "Stop"
 $processing = [System.Collections.Generic.HashSet[string]]::new()
+$completed = [System.Collections.Generic.HashSet[string]]::new()
 
 function Write-Log {
   param([string]$Message)
@@ -34,12 +36,34 @@ function Print-Docx {
 
   for ($attempt = 1; $attempt -le 5; $attempt++) {
     try {
+      $existingWordIds = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
       $arguments = @('/q', '/n', '/mFilePrintDefault', $FilePath)
       $process = Start-Process -FilePath 'winword.exe' -ArgumentList $arguments -PassThru
       $process.WaitForExit()
 
+      $launchedWordIds = @()
+      for ($pidAttempt = 1; $pidAttempt -le 10; $pidAttempt++) {
+        $currentWordIds = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+        $launchedWordIds = @($currentWordIds | Where-Object { $_ -notin $existingWordIds })
+        if ($launchedWordIds.Count -gt 0) {
+          break
+        }
+
+        Start-Sleep -Milliseconds 500
+      }
+
       if ($process.ExitCode -ne 0) {
         throw "Word spausdinimas baigesi su klaidos kodu $($process.ExitCode)"
+      }
+
+      if ($KillWordAfterPrint) {
+        Start-Sleep -Seconds 1
+        foreach ($launchedWordId in $launchedWordIds) {
+          $launchedWordProcess = Get-Process -Id $launchedWordId -ErrorAction SilentlyContinue
+          if ($launchedWordProcess) {
+            Stop-Process -Id $launchedWordId -Force -ErrorAction SilentlyContinue
+          }
+        }
       }
 
       return
@@ -95,6 +119,10 @@ $action = {
     return
   }
 
+  if ($completed.Contains($fullPath)) {
+    return
+  }
+
   if (-not $processing.Add($fullPath)) {
     return
   }
@@ -112,6 +140,7 @@ $action = {
 
     $destination = Join-Path $resolvedPrintedDir $name
     Move-Item -LiteralPath $fullPath -Destination $destination -Force
+    [void]$completed.Add($fullPath)
     Write-Log "[done] moved $name -> $destination"
   } catch {
     Write-Log "[error] $fullPath :: $($_.Exception.Message)"
@@ -121,7 +150,6 @@ $action = {
 }
 
 $createdRegistration = Register-ObjectEvent -InputObject $watcher -EventName Created -Action $action
-$changedRegistration = Register-ObjectEvent -InputObject $watcher -EventName Changed -Action $action
 $renamedRegistration = Register-ObjectEvent -InputObject $watcher -EventName Renamed -Action $action
 
 try {
@@ -130,7 +158,6 @@ try {
   }
 } finally {
   Unregister-Event -SourceIdentifier $createdRegistration.Name -ErrorAction SilentlyContinue
-  Unregister-Event -SourceIdentifier $changedRegistration.Name -ErrorAction SilentlyContinue
   Unregister-Event -SourceIdentifier $renamedRegistration.Name -ErrorAction SilentlyContinue
   $watcher.Dispose()
 }
