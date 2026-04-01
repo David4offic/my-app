@@ -6,16 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "watch:print-docx": "powershell -ExecutionPolicy Bypass -File .\\watch-print-docx.ps1"
+    "lint": "eslint"
   },
   "dependencies": {
-    "docxtemplater": "^3.68.3",
     "lucide-react": "^0.577.0",
     "next": "16.1.7",
-    "nodemailer": "^8.0.3",
-    "pizzip": "^3.2.0",
-    "puppeteer": "^24.39.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

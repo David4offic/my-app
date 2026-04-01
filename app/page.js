@@ -65,7 +65,7 @@ export default function Page() {
                   autoComplete="off"
                   value={issueKey}
                   onChange={(event) => setIssueKey(event.target.value)}
-                  placeholder="IR-1234"
+                  placeholder="IR-0000"
                   className="h-14 flex-1 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg font-semibold outline-none transition focus:border-[#007fff] focus:ring-4 focus:ring-blue-100"
                 />
 
@@ -106,7 +106,7 @@ export default function Page() {
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-sm font-bold text-[#007fff]">2. Įveskite IR kodą</p>
                 <p className="mt-1 text-slate-700">
-                  Pavyzdys: <span className="font-semibold">IR-1234</span>.
+                  Pavyzdys: <span className="font-semibold">IR-0341</span>.
                 </p>
               </div>
 
