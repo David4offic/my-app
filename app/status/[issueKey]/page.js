@@ -1,7 +1,5 @@
 import Link from 'next/link';
 import {
-  Bell,
-  UserCircle2,
   Wrench,
   Printer,
   Barcode,
@@ -12,6 +10,7 @@ import {
   Truck,
   Check,
 } from 'lucide-react';
+import { getJiraIssueStatus } from '../../../lib/jiraStatus';
 
 function mapJiraStatusToUi(status) {
   const normalized = (status || '').trim().toLowerCase();
@@ -86,14 +85,14 @@ function Step({ title, subtitle, active, done, muted }) {
     <div className={`flex flex-col items-center text-center ${muted ? 'opacity-40' : ''}`}>
       <div
         className={[
-          'w-6 h-6 rounded-full ring-4 ring-white mb-3 z-10 flex items-center justify-center relative',
+          'relative z-10 mb-3 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-white',
           done ? 'bg-[#007fff]' : '',
           active ? 'bg-[#007fff]' : '',
           !done && !active ? 'bg-slate-300' : '',
         ].join(' ')}
       >
         {done ? (
-          <Check className="w-3.5 h-3.5 text-white" />
+          <Check className="h-3.5 w-3.5 text-white" />
         ) : active ? (
           <div className="absolute inset-0 rounded-full bg-[#007fff]/20 animate-ping" />
         ) : null}
@@ -109,38 +108,22 @@ function Step({ title, subtitle, active, done, muted }) {
         {title}
       </span>
 
-      <span className={`text-[11px] mt-1 ${active ? 'text-[#007fff]/70' : 'text-slate-500'}`}>
+      <span className={`mt-1 text-[11px] ${active ? 'text-[#007fff]/70' : 'text-slate-500'}`}>
         {subtitle || ''}
       </span>
     </div>
   );
 }
 
-async function getStatus(issueKey) {
-  const baseUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-
-  const response = await fetch(`${baseUrl}/api/status/${issueKey}`, {
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  return response.json();
-}
-
 export default async function StatusPage({ params }) {
   const { issueKey } = await params;
-  const data = await getStatus(issueKey);
+  const data = await getJiraIssueStatus(issueKey);
 
   if (!data || !data.success) {
     return (
       <main className="min-h-screen bg-[#f5f7f8] px-6 py-16">
         <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-10 shadow-sm">
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">
-            Užsakymas nerastas
-          </h1>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">Užsakymas nerastas</h1>
           <p className="mt-3 text-slate-600">
             Nepavyko gauti informacijos pagal numerį <strong>{issueKey}</strong>.
           </p>
@@ -157,7 +140,6 @@ export default async function StatusPage({ params }) {
 
   const jiraStatus = data.status || 'Nauja užklausa';
   const ui = mapJiraStatusToUi(jiraStatus);
-
   const createdAt = data.created || null;
   const updatedAt = data.updated || null;
   const model = data.deviceModel || '—';
@@ -166,27 +148,14 @@ export default async function StatusPage({ params }) {
   const deliveryMethod = data.deliveryMethod || 'Atsiėmimas centre';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f5f7f8] text-slate-900">
+    <div className="min-h-screen bg-[#f5f7f8] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/80 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <span className="text-xl font-black uppercase tracking-tight text-slate-900">
-              4Office
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button className="text-slate-500 transition-colors hover:text-blue-600">
-              <Bell className="h-5 w-5" />
-            </button>
-            <button className="text-slate-500 transition-colors hover:text-blue-600">
-              <UserCircle2 className="h-5 w-5" />
-            </button>
-          </div>
+          <img src="/logo.svg" alt="4office" className="h-10 w-auto md:h-12" />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-grow px-6 py-12">
+      <main className="mx-auto w-full max-w-5xl px-6 py-12">
         <div className="mb-10">
           <h1 className="text-[2.25rem] font-black leading-none tracking-tighter text-slate-900">
             Užsakymo būsena #{issueKey}
@@ -257,9 +226,7 @@ export default async function StatusPage({ params }) {
                   </span>
                   <div className="mt-2 flex items-center gap-3">
                     <Barcode className="h-5 w-5 text-[#007fff]" />
-                    <p className="font-mono text-lg font-bold leading-tight text-slate-900">
-                      {serial}
-                    </p>
+                    <p className="font-mono text-lg font-bold leading-tight text-slate-900">{serial}</p>
                   </div>
                 </div>
               </div>
@@ -274,9 +241,7 @@ export default async function StatusPage({ params }) {
                   <span className="text-xs font-bold uppercase tracking-wider text-[#007fff]">
                     Techniko pastaba
                   </span>
-                  <p className="mt-2 italic leading-relaxed text-slate-900">
-                    "{technicianNote}"
-                  </p>
+                  <p className="mt-2 italic leading-relaxed text-slate-900">"{technicianNote}"</p>
                 </div>
               </div>
             </div>
@@ -333,12 +298,10 @@ export default async function StatusPage({ params }) {
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-slate-200 bg-slate-50 py-12">
+      <footer className="border-t border-slate-200 bg-slate-50 py-12">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 md:grid-cols-2">
           <div>
-            <span className="text-lg font-black uppercase tracking-tight text-slate-900">
-              4office
-            </span>
+            <img src="/logo.svg" alt="4office" className="h-10 w-auto" />
             <p className="mt-4 text-sm font-medium text-slate-500">
               4Office, UAB © 2026 Visos teisės saugomos
             </p>
@@ -346,15 +309,9 @@ export default async function StatusPage({ params }) {
 
           <div className="flex flex-col gap-2 md:items-end">
             <div className="flex gap-6">
-              <a className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-slate-900" href="#">
-                Pagalba
-              </a>
-              <a className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-slate-900" href="#">
-                Kontaktai
-              </a>
-              <a className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-slate-900" href="#">
-                Privatumo politika
-              </a>
+              <span className="text-sm font-medium text-slate-500">Pagalba</span>
+              <span className="text-sm font-medium text-slate-500">Kontaktai</span>
+              <span className="text-sm font-medium text-slate-500">Privatumo politika</span>
             </div>
           </div>
         </div>

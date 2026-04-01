@@ -83,3 +83,20 @@ writeDocx: 6.2 ms
 copyDocxToQueue: 4.6 ms
 sendRepairCreatedEmail: 969.2 ms
 ---
+=== START 2026-03-31T08:00:36.254Z issue=IR-1136
+reportPath: C:\Users\kvadr\Desktop\Forma\my-app\generated\ataskaita.txt
+queueDocxPath: C:\Users\kvadr\Desktop\Forma\my-app\print-queue\IR-1136.docx
+requestJson: 24.8 ms
+createJiraIssue: 1546.4 ms
+responseReady: 1573.1 ms
+status: queued-background-work
+---
+=== 2026-03-31T08:00:36.274Z issue=IR-1136
+requestJson: 24.8 ms
+createJiraIssue: 1546.4 ms
+responseReady: 1573.1 ms
+generateContract: 163.6 ms
+writeDocx: 7.4 ms
+copyDocxToQueue: 7.4 ms
+sendRepairCreatedEmail: 739.3 ms
+---
