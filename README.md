@@ -33,3 +33,18 @@ npm run dev
 ## Deploy
 
 Projektas paruoštas talpinimui ant Vercel kaip Next.js aplikacija.
+
+## Spausdinimas ofise be PDF
+
+Yra pridėtas MVP variantas:
+
+- serveris pateikia kitą neatsipausdintą užduotį per `/api/print-jobs/next`
+- vietinis Windows agentas `print-jobs-agent.ps1` pollina serverį
+- agentas sugeneruoja paprastą Word dokumentą vietoje ir jį atspausdina
+- po spausdinimo agentas pažymi Jira užduotį kaip įvykdytą
+
+Tam reikia:
+
+- `PRINT_AGENT_TOKEN`
+- Jira label `print-pending` naujai spausdinimo užduočiai
+- Word įdiegto Windows kompiuteryje
