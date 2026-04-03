@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a 4office Next.js project.
 
 ## Getting Started
 
@@ -19,6 +19,19 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Remote print mode
+
+This branch supports two print delivery modes:
+
+- `PRINT_DELIVERY_MODE=local-queue`
+- `PRINT_DELIVERY_MODE=jira-agent`
+
+`jira-agent` mode is intended for a hosted server plus a Windows office computer:
+
+- the server creates a Jira-backed print job
+- `print-jobs-agent.ps1` polls the server
+- the agent downloads the generated DOCX and prints it through Word locally
 
 ## Learn More
 

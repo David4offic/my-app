@@ -2,6 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
 import { generateContract } from '../../../lib/generateContract';
+import {
+  createRemotePrintJob,
+  getPendingPrintLabel,
+  isRemotePrintEnabled,
+} from '../../../lib/printJobs';
 import { sendRepairCreatedEmail } from '../../../lib/mail';
 
 const AUTO_PRINT_DIR = process.env.AUTO_PRINT_DIR || path.join(process.cwd(), 'print-queue');
@@ -82,6 +87,11 @@ async function createJiraIssue(formData) {
       customfield_10068: formData.email || '',
       customfield_10105: formData.deviceModel || '',
       customfield_10094: formData.serialNumber || '',
+      ...(isRemotePrintEnabled()
+        ? {
+            labels: [getPendingPrintLabel()],
+          }
+        : {}),
     },
   };
 
@@ -197,10 +207,16 @@ async function runBackgroundRegistrationWork({
     await fsPromises.writeFile(generatedDocxPath, contractBuffer);
     pushTiming(timings, 'writeDocx', stepStart);
 
-    stepStart = process.hrtime.bigint();
-    await ensureDirectory(path.dirname(queueDocxPath));
-    await fsPromises.copyFile(generatedDocxPath, queueDocxPath);
-    pushTiming(timings, 'copyDocxToQueue', stepStart);
+    if (isRemotePrintEnabled()) {
+      stepStart = process.hrtime.bigint();
+      await createRemotePrintJob(issueKey, contractData);
+      pushTiming(timings, 'createRemotePrintJob', stepStart);
+    } else {
+      stepStart = process.hrtime.bigint();
+      await ensureDirectory(path.dirname(queueDocxPath));
+      await fsPromises.copyFile(generatedDocxPath, queueDocxPath);
+      pushTiming(timings, 'copyDocxToQueue', stepStart);
+    }
 
     stepStart = process.hrtime.bigint();
     await sendRepairCreatedEmail({
