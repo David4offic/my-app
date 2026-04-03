@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "watch:print-docx": "powershell -ExecutionPolicy Bypass -File .\\watch-print-docx.ps1"
+    "lint": "eslint"
   },
   "dependencies": {
     "docxtemplater": "^3.68.3",

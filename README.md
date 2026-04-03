@@ -1,49 +1,53 @@
-This is a 4office Next.js project.
+# 4office
 
-## Getting Started
+Šitas branchas skirtas 4office registracijos formai, Jira integracijai ir nuotoliniam spausdinimui per Windows agentą.
 
-First, run the development server:
+## Pagrindiniai srautai
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- remonto registracija per formą
+- Jira issue sukūrimas
+- DOCX akto generavimas iš `templates/aktas.docx`
+- status puslapis klientui
+- spausdinimas per vietinį Windows agentą
+
+## Environment kintamieji
+
+```env
+JIRA_BASE_URL=
+JIRA_EMAIL=
+JIRA_API_TOKEN=
+PRINT_DELIVERY_MODE=local-queue
+PRINT_AGENT_TOKEN=
+JIRA_PRINT_PENDING_LABEL=print-pending
+JIRA_PRINT_DONE_LABEL=print-done
+JIRA_PRINT_PROPERTY_KEY=four_office_print_job
+AUTO_PRINT_DIR=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Spausdinimo režimai
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### local-queue
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Serveris sugeneruoja DOCX ir padeda jį į lokalų katalogą.
 
-## Remote print mode
+### jira-agent
 
-This branch supports two print delivery modes:
+Serveris išsaugo print job Jira pusėje, o `print-jobs-agent.ps1`:
 
-- `PRINT_DELIVERY_MODE=local-queue`
-- `PRINT_DELIVERY_MODE=jira-agent`
+- pasiima kitą laukiančią užduotį
+- parsisiunčia DOCX
+- atspausdina per Word
+- pažymi užduotį kaip įvykdytą
 
-`jira-agent` mode is intended for a hosted server plus a Windows office computer:
+## Paleidimas lokaliai
 
-- the server creates a Jira-backed print job
-- `print-jobs-agent.ps1` polls the server
-- the agent downloads the generated DOCX and prints it through Word locally
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+## Windows print agentas
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\print-jobs-agent.ps1 -ServerBaseUrl "http://localhost:3000" -Token "YOUR_TOKEN" -PrinterName "canon 1238 buhalterija"
+```
